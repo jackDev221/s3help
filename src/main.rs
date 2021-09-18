@@ -32,7 +32,7 @@ use time;
 async fn main() {
     if_multipart_then_upload_multiparts_dicom().await;
     println!("==========");
-    get_object().await;
+    // get_object().await;
 }
 
 #[tokio::test]
@@ -66,15 +66,15 @@ async fn get_object() {
     println!("2: {}",format!("{:#?}",time.sec));
     let body = object.body.take().expect("The object has no body");
 
-    // to string
-    // let body = body.map_ok(|b| b.to_vec()).try_concat().await.expect("ff");
-    // let time = time::get_time();
-    // println!("3: {}",format!("{:#?}",time.sec));
-    // let res_str = std::str::from_utf8(&body).expect("fe");
-    // let mut md5 = Md5::new();
-    // md5.input_str(res_str);
-    // println!("md5:{}", md5.result_str());
-    // println!("body length: {}", res_str.len());
+    //to string
+    let body = body.map_ok(|b| b.to_vec()).try_concat().await.expect("ff");
+    let time = time::get_time();
+    println!("3: {}",format!("{:#?}",time.sec));
+    let res_str = std::str::from_utf8(&body).expect("fe");
+    let mut md5 = Md5::new();
+    md5.input_str(res_str);
+    println!("md5:{}", md5.result_str());
+    println!("body length: {}", res_str.len());
 
 
     // write to file
@@ -90,15 +90,15 @@ async fn if_multipart_then_upload_multiparts_dicom() {
     dotenv().ok();
     let local_filename = "./witness";
     let destination_filename = "test_witness_1";
-    let bucket_name = "heco-manager-s3-test";
-    // let bucket_name = "zkdex-prod-xingchen-files";
+    // let bucket_name = "heco-manager-s3-test";
+    let bucket_name = "zkdex-prod-xingchen-files";
     let destination_filename_clone = destination_filename.clone();
     let mut file = std::fs::File::open(local_filename).unwrap();
     const CHUNK_SIZE: usize = 6_000_000;
     let mut buffer = Vec::with_capacity(CHUNK_SIZE);
 
-    let client = S3Client::new(Region::CnNorth1);
-    // let client = S3Client::new(Region::ApNortheast1);
+    // let client = S3Client::new(Region::CnNorth1);
+    let client = S3Client::new(Region::ApNortheast1);
     let create_multipart_request = CreateMultipartUploadRequest {
         bucket: bucket_name.to_owned(),
         key: destination_filename.to_owned(),
