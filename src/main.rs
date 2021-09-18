@@ -73,17 +73,18 @@ async fn get_object() {
     let body = body.map_ok(|b| b.to_vec()).try_concat().await.expect("ff");
     let time = time::get_time();
     println!("3: {}",format!("{:#?}",time.sec));
-    let res_str = std::str::from_utf8(&body).expect("fe");
-    let mut md5 = Md5::new();
-    md5.input_str(res_str);
-    println!("md5:{}", md5.result_str());
-    println!("body length: {}", res_str.len());
+
+    // let res_str = std::str::from_utf8(&body).expect("fe");
+    // let mut md5 = Md5::new();
+    // md5.input_str(res_str);
+    // println!("md5:{}", md5.result_str());
+    // println!("body length: {}", res_str.len());
 
 
-    // // write to file
-    // let mut body_read = body.into_async_read();
-    // let mut file = tokis::File::create("/Users/lvbin/Desktop/witness_get").await.expect("fc");
-    // tokio::io::copy(&mut body_read, &mut file).await;
+    // write to file
+    let mut body_read = body.into_async_read();
+    let mut file = tokio::fs::File::create("./witness_get").await.expect("fc");
+    tokio::io::copy(&mut body_read, &mut file).await;
 
     // println!("ed {}", a.len());
 
