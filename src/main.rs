@@ -87,16 +87,18 @@ async fn get_object() {
 async fn if_multipart_then_upload_multiparts_dicom() {
     let now = Instant::now();
     dotenv().ok();
-    let local_filename = "/Users/lvbin/Desktop/witness";
+    let local_filename = "./witness";
     let destination_filename = "test_witness";
-    let bucket_name = "heco-manager-s3-test";
+    // let bucket_name = "heco-manager-s3-test";
+    let bucket_name = "zkdex-prod-xingchen-files";
     let destination_filename_clone = destination_filename.clone();
     let mut file = std::fs::File::open(local_filename).unwrap();
     const CHUNK_SIZE: usize = 6_000_000;
     let mut buffer = Vec::with_capacity(CHUNK_SIZE);
 
     // let client = super::get_client().await;
-    let client = S3Client::new(Region::CnNorth1);
+    // let client = S3Client::new(Region::CnNorth1);
+    let client = S3Client::new(Region::ApNortheast1);
     let create_multipart_request = CreateMultipartUploadRequest {
         bucket: bucket_name.to_owned(),
         key: destination_filename.to_owned(),
