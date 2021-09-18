@@ -50,7 +50,7 @@ async fn calc_md5() {
 
 
 async fn get_object() {
-    let destination_filename = "test_witness";
+    let destination_filename = "test_witness_1";
     let bucket_name = "heco-manager-s3-test";
     let client = S3Client::new(Region::CnNorth1);
     let get_object_request = GetObjectRequest {
@@ -64,9 +64,9 @@ async fn get_object() {
     let  mut object = client.get_object(get_object_request).await.expect("get object failed");
     let time = time::get_time();
     println!("2: {}",format!("{:#?}",time.sec));
+    let body = object.body.take().expect("The object has no body");
 
     // to string
-    let body = object.body.take().expect("The object has no body");
     // let body = body.map_ok(|b| b.to_vec()).try_concat().await.expect("ff");
     // let time = time::get_time();
     // println!("3: {}",format!("{:#?}",time.sec));
@@ -89,7 +89,7 @@ async fn if_multipart_then_upload_multiparts_dicom() {
     let now = Instant::now();
     dotenv().ok();
     let local_filename = "./witness";
-    let destination_filename = "test_witness";
+    let destination_filename = "test_witness_1";
     let bucket_name = "heco-manager-s3-test";
     // let bucket_name = "zkdex-prod-xingchen-files";
     let destination_filename_clone = destination_filename.clone();
