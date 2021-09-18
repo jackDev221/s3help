@@ -30,7 +30,8 @@ use time;
 
 #[tokio::main]
 async fn main() {
-    // if_multipart_then_upload_multiparts_dicom().await;
+    if_multipart_then_upload_multiparts_dicom().await;
+    println!("==========");
     get_object().await;
 }
 
