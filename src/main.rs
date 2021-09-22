@@ -29,16 +29,17 @@ use time;
 
 #[tokio::main]
 async fn main() {
-    println!("==========");
-    if_multipart_then_upload_multiparts_dicom().await;
-    println!("==========");
-    get_object().await;
+    // println!("==========");
+    // if_multipart_then_upload_multiparts_dicom().await;
+    // println!("==========");
+    // get_object().await;
     // upload().await;
+    calc_md5().await;
 }
 
 #[tokio::test]
 async fn calc_md5() {
-    let local_filename = "/Users/lvbin/Desktop/witness_get";
+    let local_filename = "./witness";
     let mut file = std::fs::File::open(local_filename).unwrap();
     let mut buffer = String::new();
     let res = file.read_to_string(&mut buffer);
