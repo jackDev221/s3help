@@ -32,9 +32,10 @@ async fn main() {
     // println!("==========");
     // if_multipart_then_upload_multiparts_dicom().await;
     // println!("==========");
-    get_object().await;
+    // get_pair_object().await;
     // upload().await;
-    calc_md5().await;
+    // calc_md5().await;
+    get_pair_object().await;
 }
 
 
@@ -80,6 +81,79 @@ async fn get_object() {
     println!("task taken : {}", now.elapsed().as_secs());
 }
 
+#[derive(Default, Debug, Clone, PartialEq)]
+pub struct CompletedObject {
+    pub part_number: Option<i64>,
+    pub data: Vec<u8>,
+}
+
+async fn get_pair_object() {
+    // let now = Instant::now();
+    let now = Instant::now();
+    dotenv().ok();
+    let destination_filename = "test_witness_1";
+    let bucket_name = "zkdex-prod-xingchen-files";
+    // let bucket_name = "heco-manager-s3-test";
+    // let client = S3Client::new(Region::ApNortheast1);
+
+    let create_get_part_object = move |part_number: i64| -> GetObjectRequest {
+        GetObjectRequest {
+            bucket: bucket_name.to_string().to_owned(),
+            key: destination_filename.to_owned(),
+            part_number: Some(part_number),
+            ..Default::default()
+        }
+    };
+
+    let create_get_part_object_arc = Arc::new(create_get_part_object);
+    let completed_parts = Arc::new(Mutex::new(vec![]));
+    let mut part_number = 1;
+    let mut multiple_parts_futures = Vec::new();
+    loop {
+        if part_number > 207 {
+            println!("end break");
+            break;
+        }
+        println!("get object for {}", part_number);
+        let completed_parts_cloned = completed_parts.clone();
+        let create_get_part_object_arc_cloned = create_get_part_object_arc.clone();
+
+        let send_part_task_future = tokio::task::spawn(async move {
+            let part = create_get_part_object_arc_cloned(part_number as i64);
+            {
+                let part_number = part.part_number;
+                let client = S3Client::new(Region::ApNortheast1);
+                let mut object = client.get_object(part).await.expect("get object failed");
+                let body = object.body.take().expect("The object has no body");
+                // to string
+                let body = body.map_ok(|b| b.to_vec()).try_concat().await.expect("ff");
+                //completed_parts.add
+                completed_parts_cloned.lock().unwrap().push(CompletedObject {
+                    data: body,
+                    part_number: part_number,
+                });
+            }
+        });
+        multiple_parts_futures.push(send_part_task_future);
+        part_number = part_number + 1;
+    }
+    let _results = futures::future::join_all(multiple_parts_futures).await;
+    println!("futures done");
+    let mut completed_parts_vector = completed_parts.lock().unwrap().to_vec();
+    completed_parts_vector.sort_by_key(|part| part.part_number);
+    let mut rec:Vec<u8> = Vec::new();
+    for part in completed_parts_vector{
+        rec.extend_from_slice(part.data.as_slice());
+    }
+    println!("task taken : {}", now.elapsed().as_secs());
+    let res_str = std::str::from_utf8(&rec).expect("fail to str");
+    let mut md5 = Md5::new();
+    md5.input_str(res_str);
+    println!("md5:{}", md5.result_str());
+    println!("task taken : {}", now.elapsed().as_secs());
+}
+
+
 async fn upload() {
     let local_filename = "/Users/lvbin/Desktop/a";
     let destination_filename = "test_witness_1";
@@ -104,10 +178,10 @@ async fn upload() {
 async fn if_multipart_then_upload_multiparts_dicom() {
     let now = Instant::now();
     dotenv().ok();
-    let local_filename = "./witness";
-    let destination_filename = "test_witness_1";
-    // let bucket_name = "heco-manager-s3-test";
-    let bucket_name = "zkdex-prod-xingchen-files";
+    let local_filename = "/Users/lvbin/Desktop/witness";
+    let destination_filename = "test_witness_4";
+    let bucket_name = "heco-manager-s3-test";
+    // let bucket_name = "zkdex-prod-xingchen-files";
     let destination_filename_clone = destination_filename.clone();
     let mut file = std::fs::File::open(local_filename).unwrap();
     let mut buffer = String::new();
@@ -118,7 +192,7 @@ async fn if_multipart_then_upload_multiparts_dicom() {
     const CHUNK_SIZE: usize = 6_000_000;
     // let mut buffer = Vec::with_capacity(CHUNK_SIZE);
 
-    let client = S3Client::new(Region::ApNortheast1);
+    let client = S3Client::new(Region::CnNorth1);
     // let client = S3Client::new(Region::ApNortheast1);
     let create_multipart_request = CreateMultipartUploadRequest {
         bucket: bucket_name.to_owned(),
@@ -172,7 +246,7 @@ async fn if_multipart_then_upload_multiparts_dicom() {
         }
         let start = (part_number - 1) * CHUNK_SIZE;
         let mut end = part_number * CHUNK_SIZE;
-        if end > data_send_base.len(){
+        if end > data_send_base.len() {
             end = data_send_base.len();
         }
         // let next_buffer = Vec::with_capacity(CHUNK_SIZE);
@@ -185,7 +259,7 @@ async fn if_multipart_then_upload_multiparts_dicom() {
             {
                 let part_number = part.part_number;
                 // let client = super::get_client().await;
-                let client = S3Client::new(Region::ApNortheast1);
+                let client = S3Client::new(Region::CnNorth1);
                 let response = client.upload_part(part).await;
                 completed_parts_cloned.lock().unwrap().push(CompletedPart {
                     e_tag: response
@@ -201,7 +275,7 @@ async fn if_multipart_then_upload_multiparts_dicom() {
         part_number = part_number + 1;
     }
     // let client = super::get_client().await;
-    let client = S3Client::new(Region::ApNortheast1);
+    let client = S3Client::new(Region::CnNorth1);
     println!("waiting for futures");
     let _results = futures::future::join_all(multiple_parts_futures).await;
 
