@@ -37,7 +37,7 @@ async fn main() {
     calc_md5().await;
 }
 
-#[tokio::test]
+
 async fn calc_md5() {
     let local_filename = "./witness";
     let mut file = std::fs::File::open(local_filename).unwrap();
