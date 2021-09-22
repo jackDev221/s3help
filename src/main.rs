@@ -32,7 +32,7 @@ async fn main() {
     // println!("==========");
     // if_multipart_then_upload_multiparts_dicom().await;
     // println!("==========");
-    // get_object().await;
+    get_object().await;
     // upload().await;
     calc_md5().await;
 }
@@ -52,7 +52,7 @@ async fn calc_md5() {
 
 async fn get_object() {
     let now = Instant::now();
-    let destination_filename = "test_witness_2";
+    let destination_filename = "test_witness_1";
     let bucket_name = "zkdex-prod-xingchen-files";
     // let bucket_name = "heco-manager-s3-test";
     // let client = S3Client::new(Region::ApNortheast1);
@@ -82,7 +82,7 @@ async fn get_object() {
 
 async fn upload() {
     let local_filename = "/Users/lvbin/Desktop/a";
-    let destination_filename = "test_witness_2";
+    let destination_filename = "test_witness_1";
     // let bucket_name = "heco-manager-s3-test";
     let bucket_name = "zkdex-prod-xingchen-files";
     let destination_filename_clone = destination_filename.clone();
