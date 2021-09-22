@@ -35,7 +35,11 @@ async fn main() {
     // get_pair_object().await;
     // upload().await;
     // calc_md5().await;
-    get_pair_object().await;
+    // get_pair_object().await;
+    get_object_use_range(1241208020, 10).await;
+    println!("================");
+    get_pair_object(207).await;
+
 }
 
 
@@ -87,7 +91,82 @@ pub struct CompletedObject {
     pub data: Vec<u8>,
 }
 
-async fn get_pair_object() {
+
+async fn get_object_use_range(sum_size:i64, threads:i64) {
+    let now = Instant::now();
+    dotenv().ok();
+    let destination_filename = "test_witness_1";
+    let bucket_name = "zkdex-prod-xingchen-files";
+    // let bucket_name = "heco-manager-s3-test";
+    // let client = S3Client::new(Region::ApNortheast1);
+
+    let create_get_part_object = move |range: String| -> GetObjectRequest {
+        GetObjectRequest {
+            bucket: bucket_name.to_string().to_owned(),
+            key: destination_filename.to_owned(),
+            range: Some(range),
+            ..Default::default()
+        }
+    };
+
+    let create_get_part_object_arc = Arc::new(create_get_part_object);
+    let completed_parts = Arc::new(Mutex::new(vec![]));
+    // let sum_size: i64 = 23869385;
+    let trunks = sum_size / threads;
+    let mut counts = threads;
+    if sum_size % threads != 0 {
+        counts = counts + 1;
+    }
+    let mut part_number = 0;
+    let mut multiple_parts_futures = Vec::new();
+    loop {
+        if part_number >= counts {
+            println!("end break");
+            break;
+        }
+        println!("get object for {}", part_number);
+        let completed_parts_cloned = completed_parts.clone();
+        let create_get_part_object_arc_cloned = create_get_part_object_arc.clone();
+
+        let send_part_task_future = tokio::task::spawn(async move {
+            let range_str = format!("bytes={}-{}", (part_number) * trunks, (part_number + 1) * trunks - 1);
+            println!("index:{}: {}", part_number, range_str);
+            let part = create_get_part_object_arc_cloned(range_str.clone());
+            {
+                let part_index = Some(part_number);
+                let client = S3Client::new(Region::ApNortheast1);
+                let mut object = client.get_object(part).await.expect("get object failed");
+                let body = object.body.take().expect("The object has no body");
+                // to string
+                let body = body.map_ok(|b| b.to_vec()).try_concat().await.expect("ff");
+                //completed_parts.add
+                completed_parts_cloned.lock().unwrap().push(CompletedObject {
+                    data: body,
+                    part_number: part_index,
+                });
+            }
+        });
+        multiple_parts_futures.push(send_part_task_future);
+        part_number = part_number + 1;
+    }
+    let _results = futures::future::join_all(multiple_parts_futures).await;
+    println!("futures done");
+    let mut completed_parts_vector = completed_parts.lock().unwrap().to_vec();
+    completed_parts_vector.sort_by_key(|part| part.part_number);
+    let mut rec: Vec<u8> = Vec::new();
+    for part in completed_parts_vector {
+        rec.extend_from_slice(part.data.as_slice());
+    }
+    println!("task taken : {}", now.elapsed().as_secs());
+    let res_str = std::str::from_utf8(&rec).expect("fail to str");
+    let mut md5 = Md5::new();
+    md5.input_str(res_str);
+    println!("md5:{}", md5.result_str());
+    println!("task taken : {}", now.elapsed().as_secs());
+}
+
+
+async fn get_pair_object(pairts:i64) {
     // let now = Instant::now();
     let now = Instant::now();
     dotenv().ok();
@@ -110,7 +189,7 @@ async fn get_pair_object() {
     let mut part_number = 1;
     let mut multiple_parts_futures = Vec::new();
     loop {
-        if part_number > 207 {
+        if part_number > pairts {
             println!("end break");
             break;
         }
@@ -141,8 +220,8 @@ async fn get_pair_object() {
     println!("futures done");
     let mut completed_parts_vector = completed_parts.lock().unwrap().to_vec();
     completed_parts_vector.sort_by_key(|part| part.part_number);
-    let mut rec:Vec<u8> = Vec::new();
-    for part in completed_parts_vector{
+    let mut rec: Vec<u8> = Vec::new();
+    for part in completed_parts_vector {
         rec.extend_from_slice(part.data.as_slice());
     }
     println!("task taken : {}", now.elapsed().as_secs());
