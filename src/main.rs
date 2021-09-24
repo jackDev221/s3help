@@ -25,21 +25,26 @@ use crypto::md5::Md5;
 // use tokio::{fs::File, io};
 use futures::stream::TryStreamExt;
 use time;
+use anyhow::Error;
 
 
 #[tokio::main]
 async fn main() {
     // println!("==========");
-    // if_multipart_then_upload_multiparts_dicom().await;
-    // println!("==========");
+    let a = if_multipart_then_upload_multiparts_dicom().await;
+    // if a.is_err(){
+    //     println!("======eeee====");
+    // }else{
+    //     println!("=======hhah===");
+    // }
+    // get_object().await;
     // get_pair_object().await;
     // upload().await;
     // calc_md5().await;
     // get_pair_object().await;
     get_object_use_range(1241208020, 10).await;
     println!("================");
-    get_pair_object(207).await;
-
+    // get_pair_object(207).await;
 }
 
 
@@ -57,11 +62,11 @@ async fn calc_md5() {
 
 async fn get_object() {
     let now = Instant::now();
-    let destination_filename = "test_witness_1";
-    let bucket_name = "zkdex-prod-xingchen-files";
-    // let bucket_name = "heco-manager-s3-test";
+    let destination_filename = "zkdex/account_tree/0";
+    // let bucket_name = "zkdex-prod-xingchen-files";
+    let bucket_name = "heco-manager-s3-test";
     // let client = S3Client::new(Region::ApNortheast1);
-    let client = S3Client::new(Region::ApNortheast1);
+    let client = S3Client::new(Region::CnNorth1);
     let get_object_request = GetObjectRequest {
         bucket: bucket_name.to_owned(),
         key: destination_filename.to_owned(),
@@ -72,7 +77,11 @@ async fn get_object() {
 
     // to string
     let body = body.map_ok(|b| b.to_vec()).try_concat().await.expect("ff");
+
+    // let str_show = String::from_utf8(body).expect("fail to string");
+    // println!("{}", str_show);
     let res_str = std::str::from_utf8(&body).expect("fail to str");
+    println!("{}", res_str);
     let mut md5 = Md5::new();
     md5.input_str(res_str);
     println!("md5:{}", md5.result_str());
@@ -92,10 +101,10 @@ pub struct CompletedObject {
 }
 
 
-async fn get_object_use_range(sum_size:i64, threads:i64) {
+async fn get_object_use_range(sum_size: i64, threads: i64) {
     let now = Instant::now();
     dotenv().ok();
-    let destination_filename = "test_witness_1";
+    let destination_filename = "test_witness_2";
     let bucket_name = "zkdex-prod-xingchen-files";
     // let bucket_name = "heco-manager-s3-test";
     // let client = S3Client::new(Region::ApNortheast1);
@@ -166,7 +175,7 @@ async fn get_object_use_range(sum_size:i64, threads:i64) {
 }
 
 
-async fn get_pair_object(pairts:i64) {
+async fn get_pair_object(pairts: i64) {
     // let now = Instant::now();
     let now = Instant::now();
     dotenv().ok();
@@ -254,13 +263,13 @@ async fn upload() {
     println!("{:?}", res);
 }
 
-async fn if_multipart_then_upload_multiparts_dicom() {
+async fn if_multipart_then_upload_multiparts_dicom()-> anyhow::Result<bool>{
     let now = Instant::now();
     dotenv().ok();
-    let local_filename = "/Users/lvbin/Desktop/witness";
-    let destination_filename = "test_witness_4";
-    let bucket_name = "heco-manager-s3-test";
-    // let bucket_name = "zkdex-prod-xingchen-files";
+    let local_filename = "./witness";
+    let destination_filename = "test_witness_2";
+    // let bucket_name = "heco-manager-s3-test";
+    let bucket_name = "zkdex-prod-xingchen-files";
     let destination_filename_clone = destination_filename.clone();
     let mut file = std::fs::File::open(local_filename).unwrap();
     let mut buffer = String::new();
@@ -268,10 +277,10 @@ async fn if_multipart_then_upload_multiparts_dicom() {
     let data_send_base = buffer.into_bytes();
 
 
-    const CHUNK_SIZE: usize = 6_000_000;
+    const CHUNK_SIZE: usize = 8_000_000;
     // let mut buffer = Vec::with_capacity(CHUNK_SIZE);
 
-    let client = S3Client::new(Region::CnNorth1);
+    let client = S3Client::new(Region::ApNortheast1);
     // let client = S3Client::new(Region::ApNortheast1);
     let create_multipart_request = CreateMultipartUploadRequest {
         bucket: bucket_name.to_owned(),
@@ -281,8 +290,7 @@ async fn if_multipart_then_upload_multiparts_dicom() {
 
     // Start the multipart upload and note the upload_id generated
     let response = client.create_multipart_upload(create_multipart_request)
-        .await
-        .expect("Couldn't create multipart upload");
+        .await?;
     let upload_id = response.upload_id.unwrap();
 
     let upload_id_clone = upload_id.clone();
@@ -300,6 +308,7 @@ async fn if_multipart_then_upload_multiparts_dicom() {
 
     let create_upload_part_arc = Arc::new(create_upload_part);
     let completed_parts = Arc::new(Mutex::new(vec![]));
+    let completed_md5_equal = Arc::new(Mutex::new(true));
 
     let mut part_number = 1;
 
@@ -333,20 +342,41 @@ async fn if_multipart_then_upload_multiparts_dicom() {
         println!("part_number: {}: len:{} ", part_number, data_to_send.len());
         let completed_parts_cloned = completed_parts.clone();
         let create_upload_part_arc_cloned = create_upload_part_arc.clone();
+        let completed_md5_equal_cloned = completed_md5_equal.clone();
         let send_part_task_future = tokio::task::spawn(async move {
-            let part = create_upload_part_arc_cloned(data_to_send, part_number as i64);
+            let part = create_upload_part_arc_cloned(data_to_send.clone(), part_number as i64);
             {
                 let part_number = part.part_number;
-                // let client = super::get_client().await;
-                let client = S3Client::new(Region::CnNorth1);
+                let client = S3Client::new(Region::ApNortheast1);
+                let mut md5 = Md5::new();
+                md5.input(&(data_to_send.clone()));
+                let md5_ori = md5.result_str();
+                let number = part_number;
+                println!("{}:{}", number, md5.result_str());
                 let response = client.upload_part(part).await;
-                completed_parts_cloned.lock().unwrap().push(CompletedPart {
+                let completed_part = CompletedPart {
                     e_tag: response
                         .expect("Couldn't complete multipart upload")
                         .e_tag
                         .clone(),
                     part_number: Some(part_number),
-                });
+                };
+                let act_md5 = completed_part.clone().e_tag.unwrap().replace("\"", "");
+                let mut res = completed_md5_equal_cloned.lock().unwrap();
+                if part_number == 1 {
+                    *res = *res & md5_ori.ne(act_md5.as_str());
+                } else {
+                    *res = *res & md5_ori.eq(act_md5.as_str());
+                }
+                // completed_md5_equal_cloned.lock().unwrap().push(md5_ori.eq(act_md5.as_str()));
+                // completed_md5_equal_cloned.lock().unwrap().;
+                // if md5_ori.eq(act_md5.as_str()){
+                //
+                //     println!("{}: res: {}", number, act_md5.as_str());
+                // }else{
+                //     println!("{} not eqaul, ori:{}, dest:{}", number, md5_ori, act_md5.as_str());
+                // }
+                completed_parts_cloned.lock().unwrap().push(completed_part);
             }
         });
         multiple_parts_futures.push(send_part_task_future);
@@ -354,7 +384,7 @@ async fn if_multipart_then_upload_multiparts_dicom() {
         part_number = part_number + 1;
     }
     // let client = super::get_client().await;
-    let client = S3Client::new(Region::CnNorth1);
+    let client = S3Client::new(Region::ApNortheast1);
     println!("waiting for futures");
     let _results = futures::future::join_all(multiple_parts_futures).await;
 
@@ -374,11 +404,17 @@ async fn if_multipart_then_upload_multiparts_dicom() {
     };
 
     client.complete_multipart_upload(complete_req)
-        .await
-        .expect("Couldn't complete multipart upload");
+        .await?;
     println!(
         "time taken: {}, with chunk:: {}",
         now.elapsed().as_secs(),
         CHUNK_SIZE
     );
+    let mut completed_parts_vector = completed_md5_equal.lock().unwrap();
+
+    // println!("{}", *completed_parts_vector);
+    if !*completed_parts_vector{
+       return Err(Error::msg("dd"));
+    }
+    Ok(*completed_parts_vector)
 }

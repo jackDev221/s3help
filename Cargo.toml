@@ -8,12 +8,14 @@ edition = "2018"
 
 [dependencies]
 futures = "0.3"
-bytes="0.4.11"
-dotenv="0.15.0"
+bytes = "0.4.11"
+dotenv = "0.15.0"
 tokio = { version = "0.2", features = ["full"] }
-rusoto_core = {version = "0.43.0", default_features = false, features=["rustls"]}
-rusoto_s3 = {version = "0.43.0", default_features = false, features=["rustls"]}
-rusoto_sqs = {version = "0.43.0", default_features = false, features=["rustls"]}
+rusoto_core = { version = "0.43.0", default_features = false, features = ["rustls"] }
+rusoto_s3 = { version = "0.43.0", default_features = false, features = ["rustls"] }
+rusoto_sqs = { version = "0.43.0", default_features = false, features = ["rustls"] }
 rust-crypto = "^0.2"
 time = "0.1.41"
+anyhow = "1.0"
+
 
