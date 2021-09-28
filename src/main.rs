@@ -14,7 +14,7 @@ use rusoto_s3::{
     CompleteMultipartUploadRequest, CompletedMultipartUpload, CompletedPart,
     CreateMultipartUploadRequest, UploadPartRequest, S3, S3Client, GetObjectRequest,
 };
-use std::io::Read;
+use std::io::{Read, Write};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use std::time::Instant;
@@ -39,17 +39,17 @@ async fn main() {
     // let a = dt.sub(chrono::Duration::seconds(30));
     // println!("{}", a);
 
-    // println!("==========");
-    // let a = if_multipart_then_upload_multiparts_dicom().await;
-    // if a.is_err(){
-    //     println!("======eeee====");
-    // }else{
-    //     println!("=======hhah===");
-    // }
+    println!("==========");
+    let a = if_multipart_then_upload_multiparts_dicom().await;
+    if a.is_err(){
+        println!("======eeee====");
+    }else{
+        println!("=======hhah===");
+    }
     // get_object().await;
     // get_pair_object().await;
     // upload().await;
-    // calc_md5().await;
+    calc_md5().await;
     // get_pair_object().await;
     get_object_use_range(1241208020, 10).await;
     // use_redlock().await;
@@ -157,8 +157,8 @@ async fn get_object_use_range(sum_size: i64, threads: i64) {
     let now = Instant::now();
     dotenv().ok();
     let destination_filename = "test_witness_2";
-    let bucket_name = "zkdex-prod-xingchen-files";
-    // let bucket_name = "heco-manager-s3-test";
+    // let bucket_name = "zkdex-prod-xingchen-files";
+    let bucket_name = "heco-manager-s3-test";
     // let client = S3Client::new(Region::ApNortheast1);
 
     let create_get_part_object = move |range: String| -> GetObjectRequest {
@@ -195,7 +195,7 @@ async fn get_object_use_range(sum_size: i64, threads: i64) {
             let part = create_get_part_object_arc_cloned(range_str.clone());
             {
                 let part_index = Some(part_number);
-                let client = S3Client::new(Region::ApNortheast1);
+                let client = S3Client::new(Region::CnNorth1);
                 let mut object = client.get_object(part).await.expect("get object failed");
                 let body = object.body.take().expect("The object has no body");
                 // to string
@@ -224,6 +224,8 @@ async fn get_object_use_range(sum_size: i64, threads: i64) {
     md5.input_str(res_str);
     println!("md5:{}", md5.result_str());
     println!("task taken : {}", now.elapsed().as_secs());
+    let mut file1 = std::fs::File::create("data.txt").expect("create failed");
+    file1.write_all(res_str.as_bytes()).expect("fail to write")
 }
 
 
@@ -320,8 +322,8 @@ async fn if_multipart_then_upload_multiparts_dicom() -> anyhow::Result<bool> {
     dotenv().ok();
     let local_filename = "./witness";
     let destination_filename = "test_witness_1";
-    // let bucket_name = "heco-manager-s3-test";
-    let bucket_name = "zkdex-prod-xingchen-files";
+    let bucket_name = "heco-manager-s3-test";
+    // let bucket_name = "zkdex-prod-xingchen-files";
     let destination_filename_clone = destination_filename.clone();
     let mut file = std::fs::File::open(local_filename).unwrap();
     let mut buffer = String::new();
@@ -332,7 +334,7 @@ async fn if_multipart_then_upload_multiparts_dicom() -> anyhow::Result<bool> {
     const CHUNK_SIZE: usize = 8_000_000;
     // let mut buffer = Vec::with_capacity(CHUNK_SIZE);
 
-    let client = S3Client::new(Region::ApNortheast1);
+    let client = S3Client::new(Region::CnNorth1);
     // let client = S3Client::new(Region::ApNortheast1);
     let create_multipart_request = CreateMultipartUploadRequest {
         bucket: bucket_name.to_owned(),
@@ -399,7 +401,7 @@ async fn if_multipart_then_upload_multiparts_dicom() -> anyhow::Result<bool> {
             let part = create_upload_part_arc_cloned(data_to_send.clone(), part_number as i64);
             {
                 let part_number = part.part_number;
-                let client = S3Client::new(Region::ApNortheast1);
+                let client = S3Client::new(Region::CnNorth1);
                 let mut md5 = Md5::new();
                 md5.input(&(data_to_send.clone()));
                 let md5_ori = md5.result_str();
@@ -415,11 +417,8 @@ async fn if_multipart_then_upload_multiparts_dicom() -> anyhow::Result<bool> {
                 };
                 let act_md5 = completed_part.clone().e_tag.unwrap().replace("\"", "");
                 let mut res = completed_md5_equal_cloned.lock().unwrap();
-                if part_number == 1 {
-                    *res = *res & md5_ori.ne(act_md5.as_str());
-                } else {
-                    *res = *res & md5_ori.eq(act_md5.as_str());
-                }
+                *res = *res & md5_ori.eq(act_md5.as_str());
+
                 // completed_md5_equal_cloned.lock().unwrap().push(md5_ori.eq(act_md5.as_str()));
                 // completed_md5_equal_cloned.lock().unwrap().;
                 // if md5_ori.eq(act_md5.as_str()){
@@ -436,7 +435,7 @@ async fn if_multipart_then_upload_multiparts_dicom() -> anyhow::Result<bool> {
         part_number = part_number + 1;
     }
     // let client = super::get_client().await;
-    let client = S3Client::new(Region::ApNortheast1);
+    let client = S3Client::new(Region::CnNorth1);
     println!("waiting for futures");
     let _results = futures::future::join_all(multiple_parts_futures).await;
 
