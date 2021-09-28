@@ -51,8 +51,8 @@ async fn main() {
     // upload().await;
     // calc_md5().await;
     // get_pair_object().await;
-    // get_object_use_range(1241208020, 10).await;
-    use_redlock().await;
+    get_object_use_range(1241208020, 10).await;
+    // use_redlock().await;
 
 
     println!("================");
@@ -319,7 +319,7 @@ async fn if_multipart_then_upload_multiparts_dicom() -> anyhow::Result<bool> {
     let now = Instant::now();
     dotenv().ok();
     let local_filename = "./witness";
-    let destination_filename = "test_witness_2";
+    let destination_filename = "test_witness_1";
     // let bucket_name = "heco-manager-s3-test";
     let bucket_name = "zkdex-prod-xingchen-files";
     let destination_filename_clone = destination_filename.clone();
