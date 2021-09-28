@@ -14,8 +14,9 @@ tokio = { version = "0.2", features = ["full"] }
 rusoto_core = { version = "0.43.0", default_features = false, features = ["rustls"] }
 rusoto_s3 = { version = "0.43.0", default_features = false, features = ["rustls"] }
 rusoto_sqs = { version = "0.43.0", default_features = false, features = ["rustls"] }
+chrono = { version = "0.4", features = ["serde", "rustc-serialize"] }
 rust-crypto = "^0.2"
 time = "0.1.41"
 anyhow = "1.0"
-
+redlock= "1.2.0"
 

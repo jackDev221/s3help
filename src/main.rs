@@ -26,12 +26,21 @@ use crypto::md5::Md5;
 use futures::stream::TryStreamExt;
 use time;
 use anyhow::Error;
+use redlock::{RedLock, Lock};
+use crypto::ed25519::keypair;
+use chrono::prelude::*;
+use std::ops::Sub;
 
 
 #[tokio::main]
 async fn main() {
+    // let dt: DateTime<Utc> = Utc::now();
+    // println!("{}", dt);
+    // let a = dt.sub(chrono::Duration::seconds(30));
+    // println!("{}", a);
+
     // println!("==========");
-    let a = if_multipart_then_upload_multiparts_dicom().await;
+    // let a = if_multipart_then_upload_multiparts_dicom().await;
     // if a.is_err(){
     //     println!("======eeee====");
     // }else{
@@ -42,9 +51,52 @@ async fn main() {
     // upload().await;
     // calc_md5().await;
     // get_pair_object().await;
-    get_object_use_range(1241208020, 10).await;
+    // get_object_use_range(1241208020, 10).await;
+    use_redlock().await;
+
+
     println!("================");
     // get_pair_object(207).await;
+}
+
+
+async fn use_redlock() {
+    let mut multiple_future = Vec::new();
+    let mut i = 0;
+    while i < 3 {
+        let task_future = tokio::task::spawn(async move {
+            let t = tokio::time::Duration::from_secs(2 + i);
+            println!("Try to get lock {}: {}", i, Utc::now());
+
+            let a =vec!["redis://redis.dev-7.sinnet.huobiidc.com:6379"];
+            let rl = RedLock::new(vec!["redis://redis.dev-7.sinnet.huobiidc.com:6379"]);
+            // let rl = RedLock::new(vec!["redis://zkdex-6513:O6_LhzCazqEOhEiZ@redis.dev-7.sinnet.huobiidc.com:6379/1"]);
+            let lock;
+            let mut ttl = 500000;
+            loop {
+                // if i  ==2 {
+                //     ttl = 1000
+                // }
+                match (rl.lock("mutex_prover_t".as_bytes(), ttl))
+                {
+                    Some(l) => {
+                        lock = l;
+                        println!("Get lock by {}: {}: {}", i, Utc::now(), t.as_secs());
+                        break;
+                    }
+                    None =>()
+                }
+            }
+            println!("start to do something {}, {}", i, lock.validity_time);
+            tokio::time::delay_for(t).await;
+            println!("End use {}: {}", i,  Utc::now());
+            rl.unlock(&lock);
+        });
+        multiple_future.push(task_future);
+        i += 1;
+    }
+    let res = future::join_all(multiple_future).await;
+    println!("Done {:?}", res);
 }
 
 
@@ -263,7 +315,7 @@ async fn upload() {
     println!("{:?}", res);
 }
 
-async fn if_multipart_then_upload_multiparts_dicom()-> anyhow::Result<bool>{
+async fn if_multipart_then_upload_multiparts_dicom() -> anyhow::Result<bool> {
     let now = Instant::now();
     dotenv().ok();
     let local_filename = "./witness";
@@ -413,8 +465,8 @@ async fn if_multipart_then_upload_multiparts_dicom()-> anyhow::Result<bool>{
     let mut completed_parts_vector = completed_md5_equal.lock().unwrap();
 
     // println!("{}", *completed_parts_vector);
-    if !*completed_parts_vector{
-       return Err(Error::msg("dd"));
+    if !*completed_parts_vector {
+        return Err(Error::msg("dd"));
     }
     Ok(*completed_parts_vector)
 }
