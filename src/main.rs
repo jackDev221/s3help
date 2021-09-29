@@ -40,43 +40,45 @@ async fn main() {
     // println!("{}", a);
 
     println!("==========");
-    let a = if_multipart_then_upload_multiparts_dicom().await;
-    if a.is_err(){
-        println!("======eeee====");
-    }else{
-        println!("=======hhah===");
-    }
-    // get_object().await;
-    // get_pair_object().await;
-    // upload().await;
-    calc_md5().await;
-    // get_pair_object().await;
-    get_object_use_range(1241208020, 10).await;
-    // use_redlock().await;
+    // let a = if_multipart_then_upload_multiparts_dicom().await;
+    // if a.is_err() {
+    //     println!("======eeee====");
+    // } else {
+    //     println!("=======hhah===");
+    // }
+    // // get_object().await;
+    // // get_pair_object().await;
+    // // upload().await;
+    // calc_md5().await;
+    // // get_pair_object().await;
+    // get_object_use_range(1241208020, 10).await;
+    use_redlock().await;
+    println!("==========");
 
 
-    println!("================");
+
     // get_pair_object(207).await;
 }
 
 
 async fn use_redlock() {
+    let uris_str = "redis://zkdex-6513:O6_LhzCazqEOhEiZ@sentinel-26381-1.huobiidc.com:26381/1,\
+    redis://zkdex-6513:O6_LhzCazqEOhEiZ@sentinel-26381-2.huobiidc.com:26381/1,\
+    redis://zkdex-6513:O6_LhzCazqEOhEiZ@sentinel-26381-3.huobiidc.com:26381/1,\
+    redis://zkdex-6513:O6_LhzCazqEOhEiZ@sentinel-26381-4.huobiidc.com:26381/1,\
+    redis://zkdex-6513:O6_LhzCazqEOhEiZ@sentinel-26381-5.huobiidc.com:26381/1".to_string();
     let mut multiple_future = Vec::new();
     let mut i = 0;
     while i < 3 {
+        let uris_str_clone = uris_str.clone();
         let task_future = tokio::task::spawn(async move {
             let t = tokio::time::Duration::from_secs(2 + i);
             println!("Try to get lock {}: {}", i, Utc::now());
-
-            let a =vec!["redis://redis.dev-7.sinnet.huobiidc.com:6379"];
-            let rl = RedLock::new(vec!["redis://redis.dev-7.sinnet.huobiidc.com:6379"]);
-            // let rl = RedLock::new(vec!["redis://zkdex-6513:O6_LhzCazqEOhEiZ@redis.dev-7.sinnet.huobiidc.com:6379/1"]);
+            let urirs: Vec<&str> = uris_str_clone.split(",").collect();
+            let rl = RedLock::new(urirs);
             let lock;
             let mut ttl = 500000;
             loop {
-                // if i  ==2 {
-                //     ttl = 1000
-                // }
                 match (rl.lock("mutex_prover_t".as_bytes(), ttl))
                 {
                     Some(l) => {
@@ -84,12 +86,12 @@ async fn use_redlock() {
                         println!("Get lock by {}: {}: {}", i, Utc::now(), t.as_secs());
                         break;
                     }
-                    None =>()
+                    None => ()
                 }
             }
             println!("start to do something {}, {}", i, lock.validity_time);
             tokio::time::delay_for(t).await;
-            println!("End use {}: {}", i,  Utc::now());
+            println!("End use {}: {}", i, Utc::now());
             rl.unlock(&lock);
         });
         multiple_future.push(task_future);
