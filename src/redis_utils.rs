@@ -27,7 +27,12 @@ pub async fn unlock(red_lock: &RedLock, lock: &Lock<'_>) {
 
 
 pub async fn do_redis() {
-    let urls_url = "redis://redis.dev-7.sinnet.huobiidc.com:6379".to_string();
+    // let urls_url = "redis://redis.dev-7.sinnet.huobiidc.com:6379".to_string();
+    let urls_url = "redis://sentinel-26381-1.huobiidc.com:26381/1,\
+    redis://sentinel-26381-2.huobiidc.com:26381/1,\
+    redis://sentinel-26381-3.huobiidc.com:26381/1,\
+    redis://sentinel-26381-4.huobiidc.com:26381/1,\
+    redis://sentinel-26381-5.huobiidc.com:26381/1".to_string();
     let mut multiple_future = Vec::new();
     let mut i = 0;
     while i < 5 {

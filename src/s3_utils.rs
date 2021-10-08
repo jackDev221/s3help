@@ -86,7 +86,7 @@ pub struct CompletedObject {
 pub async fn get_object_use_range(sum_size: i64, threads: i64) {
     let now = Instant::now();
     dotenv().ok();
-    let destination_filename = "test_witness_2";
+    let destination_filename = "test_witness_1";
     // let bucket_name = "zkdex-prod-xingchen-files";
     let bucket_name = "heco-manager-s3-test";
     // let client = S3Client::new(Region::ApNortheast1);
