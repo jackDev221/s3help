@@ -30,16 +30,15 @@ pub async fn calc_md5(file: String) {
     }
 }
 
-pub async fn get_object() {
+pub async fn get_object(region_string: String,
+                        bucket_name: String,
+                        key: String) {
     let now = Instant::now();
-    let destination_filename = "zkdex/account_tree/0";
-    // let bucket_name = "zkdex-prod-xingchen-files";
-    let bucket_name = "heco-manager-s3-test";
-    // let client = S3Client::new(Region::ApNortheast1);
-    let client = S3Client::new(Region::CnNorth1);
+    let region = Region::from_str(region_string.as_str()).expect("parse region failed");
+    let client = S3Client::new(region);
     let get_object_request = GetObjectRequest {
         bucket: bucket_name.to_owned(),
-        key: destination_filename.to_owned(),
+        key: key.to_owned(),
         ..Default::default()
     };
     let mut object = client.get_object(get_object_request).await.expect("get object failed");
@@ -148,19 +147,18 @@ pub async fn get_object_use_range(sum_size: i64,
 }
 
 
-pub async fn get_pair_object(pairts: i64) {
+pub async fn get_pair_object(pairts: i64,
+                             region_string: String,
+                             key: String,
+                             bucket_name: String) {
     // let now = Instant::now();
     let now = Instant::now();
+    let region = Region::from_str(region_string.as_str()).expect("parse region failed");
     dotenv().ok();
-    let destination_filename = "test_witness_1";
-    let bucket_name = "zkdex-prod-xingchen-files";
-    // let bucket_name = "heco-manager-s3-test";
-    // let client = S3Client::new(Region::ApNortheast1);
-
     let create_get_part_object = move |part_number: i64| -> GetObjectRequest {
         GetObjectRequest {
-            bucket: bucket_name.to_string().to_owned(),
-            key: destination_filename.to_owned(),
+            bucket: bucket_name.to_owned(),
+            key: key.to_owned(),
             part_number: Some(part_number),
             ..Default::default()
         }
@@ -178,12 +176,13 @@ pub async fn get_pair_object(pairts: i64) {
         println!("get object for {}", part_number);
         let completed_parts_cloned = completed_parts.clone();
         let create_get_part_object_arc_cloned = create_get_part_object_arc.clone();
+        let region_clone = region.clone();
 
         let send_part_task_future = tokio::task::spawn(async move {
             let part = create_get_part_object_arc_cloned(part_number as i64);
             {
                 let part_number = part.part_number;
-                let client = S3Client::new(Region::ApNortheast1);
+                let client = S3Client::new(region_clone);
                 let mut object = client.get_object(part).await.expect("get object failed");
                 let body = object.body.take().expect("The object has no body");
                 // to string
@@ -215,38 +214,37 @@ pub async fn get_pair_object(pairts: i64) {
 }
 
 
-pub async fn upload() {
-    let local_filename = "/Users/lvbin/Desktop/a";
-    let destination_filename = "test_witness_1";
-    // let bucket_name = "heco-manager-s3-test";
-    let bucket_name = "zkdex-prod-xingchen-files";
-    let destination_filename_clone = destination_filename.clone();
-    let mut file = std::fs::File::open(local_filename).unwrap();
+pub async fn upload(region_string: String,
+                    local_file_name: String,
+                    key: String,
+                    bucket_name: String) {
+    let region = Region::from_str(region_string.as_str()).expect("parse region failed");
+    let mut file = std::fs::File::open(local_file_name).unwrap();
     let mut buffer = String::new();
     let res = file.read_to_string(&mut buffer);
     if res.is_err() {
         println!("read fail {}", res.err().unwrap())
     }
     let body = buffer.into_bytes();
-    let client = S3Client::new(Region::ApNortheast1);
+    let client = S3Client::new(region);
     let por = PutObjectRequest {
         body: Some(body.into()),
-        bucket: bucket_name.to_string().to_owned(),
-        key: destination_filename_clone.to_owned(),
+        bucket: bucket_name.to_owned(),
+        key: key.to_owned(),
         ..Default::default()
     };
     let res = client.put_object(por).await.expect("fail ");
     println!("{:?}", res);
 }
 
-pub async fn if_multipart_then_upload_multiparts_dicom(file: String) -> anyhow::Result<bool> {
+pub async fn upload_multiparts(file: String,
+                               region_string: String,
+                               bucket_name: String,
+                               key: String) -> anyhow::Result<bool> {
     let now = Instant::now();
+    let region = Region::from_str(region_string.as_str()).expect("parse region failed");
     dotenv().ok();
     let local_filename = file.as_str();
-    let destination_filename = "test_witness_1";
-    let bucket_name = "zkdex-prod-starslab-files";
-    // let bucket_name = "zkdex-prod-xingchen-files";
-    let destination_filename_clone = destination_filename.clone();
     let mut file = std::fs::File::open(local_filename).unwrap();
     let mut buffer = String::new();
     let res = file.read_to_string(&mut buffer);
@@ -254,16 +252,11 @@ pub async fn if_multipart_then_upload_multiparts_dicom(file: String) -> anyhow::
         println!("read fail {}", res.err().unwrap())
     }
     let data_send_base = buffer.into_bytes();
-
-
     const CHUNK_SIZE: usize = 8_000_000;
-    // let mut buffer = Vec::with_capacity(CHUNK_SIZE);
-
-    let client = S3Client::new(Region::ApNortheast1);
-    // let client = S3Client::new(Region::ApNortheast1);
+    let client = S3Client::new(region.clone());
     let create_multipart_request = CreateMultipartUploadRequest {
         bucket: bucket_name.to_owned(),
-        key: destination_filename.to_owned(),
+        key: key.to_owned(),
         ..Default::default()
     };
 
@@ -273,12 +266,14 @@ pub async fn if_multipart_then_upload_multiparts_dicom(file: String) -> anyhow::
     let upload_id = response.upload_id.unwrap();
 
     let upload_id_clone = upload_id.clone();
+    let bucket_name_clone = bucket_name.clone();
+    let key_clone = key.clone();
     // Create upload parts
     let create_upload_part = move |body: Vec<u8>, part_number: i64| -> UploadPartRequest {
         UploadPartRequest {
             body: Some(body.into()),
-            bucket: bucket_name.to_string().to_owned(),
-            key: destination_filename_clone.to_owned(),
+            bucket: bucket_name_clone.to_owned(),
+            key: key_clone.to_owned(),
             upload_id: upload_id_clone.to_owned(),
             part_number: part_number,
             ..Default::default()
@@ -288,9 +283,7 @@ pub async fn if_multipart_then_upload_multiparts_dicom(file: String) -> anyhow::
     let create_upload_part_arc = Arc::new(create_upload_part);
     let completed_parts = Arc::new(Mutex::new(vec![]));
     let completed_md5_equal = Arc::new(Mutex::new(true));
-
     let mut part_number = 1;
-
     let mut multiple_parts_futures = Vec::new();
     loop {
         if (part_number - 1) * CHUNK_SIZE > data_send_base.len() {
@@ -308,11 +301,12 @@ pub async fn if_multipart_then_upload_multiparts_dicom(file: String) -> anyhow::
         let completed_parts_cloned = completed_parts.clone();
         let create_upload_part_arc_cloned = create_upload_part_arc.clone();
         let completed_md5_equal_cloned = completed_md5_equal.clone();
+        let region_clone = region.clone();
         let send_part_task_future = tokio::task::spawn(async move {
             let part = create_upload_part_arc_cloned(data_to_send.clone(), part_number as i64);
             {
                 let part_number = part.part_number;
-                let client = S3Client::new(Region::ApNortheast1);
+                let client = S3Client::new(region_clone);
                 let mut md5 = Md5::new();
                 md5.input(&(data_to_send.clone()));
                 let md5_ori = md5.result_str();
@@ -333,11 +327,9 @@ pub async fn if_multipart_then_upload_multiparts_dicom(file: String) -> anyhow::
             }
         });
         multiple_parts_futures.push(send_part_task_future);
-        // buffer = next_buffer;
         part_number = part_number + 1;
     }
-    // let client = super::get_client().await;
-    let client = S3Client::new(Region::ApNortheast1);
+    let client = S3Client::new(region.clone());
     println!("waiting for futures");
     let _results = futures::future::join_all(multiple_parts_futures).await;
 
@@ -350,7 +342,7 @@ pub async fn if_multipart_then_upload_multiparts_dicom(file: String) -> anyhow::
 
     let complete_req = CompleteMultipartUploadRequest {
         bucket: bucket_name.to_owned(),
-        key: destination_filename.to_owned(),
+        key: key.to_owned(),
         upload_id: upload_id.to_owned(),
         multipart_upload: Some(completed_upload),
         ..Default::default()
@@ -364,9 +356,8 @@ pub async fn if_multipart_then_upload_multiparts_dicom(file: String) -> anyhow::
         CHUNK_SIZE
     );
     let completed_parts_vector = completed_md5_equal.lock().unwrap();
-    // println!("{}", *completed_parts_vector);
     if !*completed_parts_vector {
-        return Err(Error::msg("dd"));
+        return Err(Error::msg("completed_parts_vector"));
     }
     Ok(*completed_parts_vector)
 }
