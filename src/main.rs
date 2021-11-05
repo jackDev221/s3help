@@ -1,26 +1,20 @@
 pub mod s3_utils;
 pub mod redis_utils;
 
-use s3_utils::{if_multipart_then_upload_multiparts_dicom, get_object_use_range, calc_md5};
+use s3_utils::get_object_use_range;
 
 #[tokio::main]
 async fn main() {
-    // redis_utils::do_redis().await;
-    do_s3_task_n().await;
+    do_s3_download().await;
 }
 
-async fn do_s3_task() {
-    println!("upload file");
-    // if_multipart_then_upload_multiparts_dicom().await;
-    println!("calc md5");
-    // calc_md5();
-    println!("download");
-    get_object_use_range(1122221, 10).await;
-}
-
-async fn do_s3_task_n() {
-    // let file =  "/Users/lvbin/Person/code/rust/myrust/data.txt".to_string();
-    get_object_use_range(641694, 10).await;
-    // if_multipart_then_upload_multiparts_dicom(file.clone()).await;
-    // calc_md5(file.clone()).await;
+async fn do_s3_download() {
+    get_object_use_range(
+        9940,
+        10,
+        "cnnorth1".to_string(),
+        "heco-manager-s3-test".to_string(),
+        "zkdex/account_tree/test-2/718".to_string(),
+        "data.txt".to_string(),
+    ).await;
 }

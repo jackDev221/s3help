@@ -1,36 +1,24 @@
 extern crate dotenv;
 extern crate tokio;
 
-use bytes::Bytes;
 use dotenv::dotenv;
-use futures::executor;
-use futures::*;
-use rusoto_core::credential::{EnvironmentProvider, ProvideAwsCredentials};
-use rusoto_core::{Region, RusotoError};
-use rusoto_s3::util::{PreSignedRequest, PreSignedRequestOption};
+use rusoto_core::Region;
 use rusoto_s3::PutObjectRequest;
-use rusoto_s3::StreamingBody;
 use rusoto_s3::{
     CompleteMultipartUploadRequest, CompletedMultipartUpload, CompletedPart,
     CreateMultipartUploadRequest, UploadPartRequest, S3, S3Client, GetObjectRequest,
 };
 use std::io::{Read, Write};
 use std::sync::{Arc, Mutex};
-use std::time::Duration;
 use std::time::Instant;
 
 use crypto::digest::Digest;
 use crypto::md5::Md5;
 use futures::stream::TryStreamExt;
-use time;
 use anyhow::Error;
-use redlock::{RedLock, Lock};
-use crypto::ed25519::keypair;
-use chrono::prelude::*;
-use std::ops::Sub;
-use std::borrow::Borrow;
+use std::str::FromStr;
 
-pub async fn calc_md5(file :String) {
+pub async fn calc_md5(file: String) {
     let local_filename = file.as_str();
     let mut file = std::fs::File::open(local_filename).unwrap();
     let mut buffer = String::new();
@@ -83,18 +71,19 @@ pub struct CompletedObject {
 }
 
 
-pub async fn get_object_use_range(sum_size: i64, threads: i64) {
+pub async fn get_object_use_range(sum_size: i64,
+                                  threads: i64,
+                                  region_string: String,
+                                  bucket_name: String,
+                                  key: String,
+                                  des_file: String) {
     let now = Instant::now();
     dotenv().ok();
-    let destination_filename = "zkdex/account_tree/pr8_pt/witness/4";
-    // let bucket_name = "zkdex-prod-xingchen-files";
-    let bucket_name = "zkdex-prod-starslab-files";
-    // let client = S3Client::new(Region::ApNortheast1);
-
+    let region = Region::from_str(region_string.as_str()).expect("parse region failed");
     let create_get_part_object = move |range: String| -> GetObjectRequest {
         GetObjectRequest {
-            bucket: bucket_name.to_string().to_owned(),
-            key: destination_filename.to_owned(),
+            bucket: bucket_name.clone(),
+            key: key.clone(),
             range: Some(range),
             ..Default::default()
         }
@@ -102,7 +91,6 @@ pub async fn get_object_use_range(sum_size: i64, threads: i64) {
 
     let create_get_part_object_arc = Arc::new(create_get_part_object);
     let completed_parts = Arc::new(Mutex::new(vec![]));
-    // let sum_size: i64 = 23869385;
     let trunks = sum_size / threads;
     let mut counts = threads;
     if sum_size % threads != 0 {
@@ -118,6 +106,7 @@ pub async fn get_object_use_range(sum_size: i64, threads: i64) {
         println!("get object for {}", part_number);
         let completed_parts_cloned = completed_parts.clone();
         let create_get_part_object_arc_cloned = create_get_part_object_arc.clone();
+        let region_clone = region.clone();
 
         let send_part_task_future = tokio::task::spawn(async move {
             let range_str = format!("bytes={}-{}", (part_number) * trunks, (part_number + 1) * trunks - 1);
@@ -125,7 +114,7 @@ pub async fn get_object_use_range(sum_size: i64, threads: i64) {
             let part = create_get_part_object_arc_cloned(range_str.clone());
             {
                 let part_index = Some(part_number);
-                let client = S3Client::new(Region::ApNortheast1);
+                let client = S3Client::new(region_clone);
                 let mut object = client.get_object(part).await.expect("get object failed");
                 let body = object.body.take().expect("The object has no body");
                 // to string
@@ -154,7 +143,7 @@ pub async fn get_object_use_range(sum_size: i64, threads: i64) {
     md5.input_str(res_str);
     println!("md5:{}", md5.result_str());
     println!("task taken : {}", now.elapsed().as_secs());
-    let mut file1 = std::fs::File::create("data.txt").expect("create failed");
+    let mut file1 = std::fs::File::create(des_file.as_str()).expect("create failed");
     file1.write_all(res_str.as_bytes()).expect("fail to write")
 }
 
@@ -226,7 +215,7 @@ pub async fn get_pair_object(pairts: i64) {
 }
 
 
-async fn upload() {
+pub async fn upload() {
     let local_filename = "/Users/lvbin/Desktop/a";
     let destination_filename = "test_witness_1";
     // let bucket_name = "heco-manager-s3-test";
@@ -235,6 +224,9 @@ async fn upload() {
     let mut file = std::fs::File::open(local_filename).unwrap();
     let mut buffer = String::new();
     let res = file.read_to_string(&mut buffer);
+    if res.is_err() {
+        println!("read fail {}", res.err().unwrap())
+    }
     let body = buffer.into_bytes();
     let client = S3Client::new(Region::ApNortheast1);
     let por = PutObjectRequest {
@@ -247,7 +239,7 @@ async fn upload() {
     println!("{:?}", res);
 }
 
-pub async fn if_multipart_then_upload_multiparts_dicom(file:String) -> anyhow::Result<bool> {
+pub async fn if_multipart_then_upload_multiparts_dicom(file: String) -> anyhow::Result<bool> {
     let now = Instant::now();
     dotenv().ok();
     let local_filename = file.as_str();
@@ -258,6 +250,9 @@ pub async fn if_multipart_then_upload_multiparts_dicom(file:String) -> anyhow::R
     let mut file = std::fs::File::open(local_filename).unwrap();
     let mut buffer = String::new();
     let res = file.read_to_string(&mut buffer);
+    if res.is_err() {
+        println!("read fail {}", res.err().unwrap())
+    }
     let data_send_base = buffer.into_bytes();
 
 
@@ -368,8 +363,7 @@ pub async fn if_multipart_then_upload_multiparts_dicom(file:String) -> anyhow::R
         now.elapsed().as_secs(),
         CHUNK_SIZE
     );
-    let mut completed_parts_vector = completed_md5_equal.lock().unwrap();
-
+    let completed_parts_vector = completed_md5_equal.lock().unwrap();
     // println!("{}", *completed_parts_vector);
     if !*completed_parts_vector {
         return Err(Error::msg("dd"));
